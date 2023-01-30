@@ -1,0 +1,11 @@
+{% extends "base.html" %} 
+
+{% block content %}
+
+{% if request.user.is_authenticated %}
+<div id='tweetmoof-feed'></div>
+{% else %}
+<div id='tweetmoof'></div>
+{% endif %}
+
+{% endblock content %}

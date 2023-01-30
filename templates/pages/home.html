@@ -1,0 +1,209 @@
+{% extends "base.html" %} 
+{% block head_title %}
+Moofing Me
+{% endblock head_title %}
+{% block content %}
+
+<div class='row text-center d-none'>
+  <div class='col'>
+    <h1>Welcome to Moofme</h1>
+  </div>
+</div>
+
+<div class='row mb-3 d-none'>
+  <div class='col-md-4 mx-auto col-10'>
+    <form class='form' id='moof-create-form' method='POST' action='/create-moof'>
+      {% csrf_token %}
+      <div class='d-none alert alert-danger' id='moof-create-form-error'></div>
+      <input type='hidden' value='/' name='next' />
+      <textarea required='required' class='form-control' name='content' placeholder='Your moof ...'></textarea>
+      <button type='submit' class='btn btn-primary'>Moof</button>
+    </form>
+  </div>
+</div>
+
+<div id='tweetmoof'></div>
+
+<div class='row d-none' id="moofs">Load me...</div>
+
+<script>
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        // Does this cookie string begin with the name we want?
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  function handleMoofFormError(msg, display) {
+    var myErrorDiv = document.getElementById("moof-create-form-error");
+    if (display === true) {
+      // show error
+      myErrorDiv.setAttribute("class", "d-block alert alert-danger");
+      myErrorDiv.innerText = msg;
+    } else {
+      // hide error
+      myErrorDiv.setAttribute("class", "d-none alert alert-danger");
+    }
+  };
+
+  function handleMoofCreateFormDidSubmit(event) {
+    event.preventDefault();
+    const myForm = event.target;
+    const myFormData = new FormData(myForm);
+    const url = myForm.getAttribute("action");
+    const method = myForm.getAttribute("method");
+    const xhr = new XMLHttpRequest();
+    const responseType = "json";
+    xhr.responseType = responseType;
+    xhr.open(method, url);
+    xhr.setRequestHeader("HTTP_X_REQUESTED_WITH", "XMLHttpRequest");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    xhr.onload = function() {
+      if (xhr.status === 201) {
+        handleMoofFormError("", false);
+        const newMoofJson = xhr.response;
+        const newMoofElement = formatMoofElement(newMoofJson);
+        const ogHtml = moofsContainerElement.innerHTML;
+        moofsContainerElement.innerHTML = newMoofElement + ogHtml;
+        myForm.reset();
+      } else if (xhr.status === 400) {
+          const errorJson = xhr.response;
+          const contentError = errorJson.content;
+          let contentErrorMsg;
+          if (contentError) {
+            contentErrorMsg = contentError[0];
+            if (contentErrorMsg) {
+              handleMoofFormError(contentErrorMsg, true);
+            } else {
+                alert("An error occured. Please try again.");
+            }
+          } else {
+              alert("An error occured. Please try again.");
+          }
+      } else if (xhr.status === 401) {
+          alert("You must login!");
+          window.location.href = "/login";
+      } else if (xhr.status === 403) {
+          alert("You must login!");
+          window.location.href = "/login";
+      } else if (xhr.status === 500) {
+        //console.log(xhr)
+        alert("There was a server error, please try again.");
+      }
+    };
+    xhr.onerror = function() {
+      alert("An error occured. Please try again later.");
+    };
+    xhr.send(myFormData);
+  };
+
+  const moofCreateFormEl = document.getElementById("moof-create-form");
+
+  moofCreateFormEl.addEventListener("submit", handleMoofCreateFormDidSubmit);
+
+	const moofsContainerElement = document.getElementById("moofs"); 
+
+  function loadMoofs(moofsElement) {
+	  const xhr = new XMLHttpRequest();
+	  const method = "GET"; // "POST"
+	  const url = "/moofs";
+	  const responseType = "json";
+    
+	  xhr.responseType = responseType;
+	  xhr.open(method, url);
+	  xhr.onload = function () {
+		  const serverResponse = xhr.response;
+		  const listedItems = serverResponse; // array
+		  var finalMoofStr = "";
+		  var i;
+		  for (i = 0; i < listedItems.length; i++) {
+			  var moofObj = listedItems[i];
+			  var currentItem = formatMoofElement(moofObj);
+			  finalMoofStr += currentItem;
+		  }
+		  moofsElement.innerHTML = finalMoofStr;
+		  // console.log(listedItems);
+	  };
+	  xhr.send();
+  };
+
+  loadMoofs(moofsContainerElement);
+
+	function handleMoofActionBtn(moof_id, currentCount, action) {
+		console.log(moof_id, currentCount);
+    const url = "/api/moofs/action";
+    const method = "POST";
+    const data = JSON.stringify({
+      id: moof_id,
+      action: action
+    });
+    const xhr = new XMLHttpRequest();
+    const csrftoken = getCookie('csrftoken');
+    xhr.open(method, url);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("HTTP_X_REQUESTED_WITH", "XMLHttpRequest");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    xhr.setRequestHeader("X-CSRFToken", csrftoken);
+    xhr.onload = function() {
+      // react.js this handles state much better
+      loadMoofs(moofsContainerElement);
+    };
+    xhr.send(data);
+	};
+
+	function LikeBtn(moof) {
+		return (
+			"<button class='btn btn-primary btn-sm' onclick=handleMoofActionBtn(" +
+			moof.id +
+			"," +
+			moof.likes +
+      ",'like')>" +
+			moof.likes +
+			" Likes</button>"
+		);
+	};
+
+	function UnLikeBtn(moof) {
+		return (
+			"<button class='btn btn-outline-primary btn-sm' onclick=handleMoofActionBtn(" +
+			moof.id +
+			"," +
+			moof.likes +
+      ",'unlike')>Unlike</button>"
+		);
+	};
+
+  function ReMoofBtn(moof) {
+		return (
+			"<button class='btn btn-outline-success btn-sm' onclick=handleMoofActionBtn(" +
+			moof.id +
+			"," +
+			moof.likes +
+      ",'remoof')>ReMoof</button>"
+	  );
+	};
+
+	function formatMoofElement(moof) {
+		var formattedMoof =
+			"<div class='col-12 col-md-10 mx-auto mb-4 py-3 border rounded moof' id='moof-" +
+			moof.id +
+			"'><p>" +
+			moof.content +
+			"</p><div class='btn-group'>" +
+			LikeBtn(moof) +
+      UnLikeBtn(moof) +
+      ReMoofBtn(moof) +
+			"</div></div>";
+		return formattedMoof;
+	};
+</script>
+{% endblock content %}
